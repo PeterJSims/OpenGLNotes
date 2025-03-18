@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <print>
 #include <SDL2/SDL.h>
 #include <glad/glad.h>
@@ -23,11 +24,38 @@ GLuint gGraphicsPipelineShaderProgram{0};
 // one object. The VAO allows us to set up the OpenGL state to render that object using
 // the correct layout and correct buffers with one call after being setup.
 GLuint gVertexArrayObject{0};
+
 // Vertex Buffer Object (VBO)
 // Vertex Buffer Objects store information relating to vertices (e.g. positions, normals,
 // textures)
 // VBOs are our mechanism for arranging geometry on the GPU.
 GLuint gVertexBufferObject{0};
+
+// Index Buffer Object
+// This is used to store the array of indices that we want to draw from
+// when we do indexed drawing.
+GLuint gIndexBufferObject{0};
+
+
+// Error Handling Routines
+static void GLClearAllErrors() {
+    while (glGetError() != GL_NO_ERROR) {
+    }
+}
+
+static bool GLCheckErrorStatus(const char* function, int line) {
+    while (GLenum error = glGetError()) {
+        std::cout << "OpenGL Error: " << error
+            << "\tLine: " << line
+            << "\tFunction: " << function
+            << '\n';
+        return true;
+    }
+
+    return false;
+}
+
+#define GLCheck(x) GLClearAllErrors(); x; GLCheckErrorStatus(#x, __LINE__);
 
 
 // Shaders
@@ -37,25 +65,21 @@ GLuint gVertexBufferObject{0};
 // OpenGL provides functions that will compile the shader source code
 // (which are simply stored as strings) at run-time.
 
-// Vertex Shader
-// The vertex shader executes once per vertex, and will be in charge of
-// the final position of the vertex
-const std::string gVertexShaderSource =
-    "#version 410 core\n"
-    "in vec4 position;\n"
-    "void main(){\n"
-    "   gl_Position = vec4(position.x, position.y, position.z, position.w);\n"
-    "}\n";
 
-// Fragment Shader
-// The fragment shader executes once per fragment(i.e. roughly for every pixel that will be rasterized
-// and in part determines the final color that will be sent to the screen.
-const std::string gFragmentShaderSource =
-    "#version 410 core\n"
-    "out vec4 color;\n"
-    "void main(){\n"
-    "  color = vec4(1.0f, 0.5f, 0.0f, 1.0f);\n"
-    "}\n";
+std::string LoadShaderAsString(const std::string& fileName) {
+    // Resulting shader program loaded as a single string
+    std::string result = "";
+    std::string line = "";
+    std::ifstream myFile(fileName.c_str());
+
+    if (myFile.is_open()) {
+        while (std::getline(myFile, line)) {
+            result += line + '\n';
+        }
+        myFile.close();
+    }
+    return result;
+}
 
 /**
  * CompileShader will compile any valid vertex, fragment, geometry, tesselation, or compute
@@ -89,11 +113,15 @@ GLuint CompileShader(GLuint type, const std::string& source) {
         char* errorMessages{new char[length]};
         glGetShaderInfoLog(shaderObject, length, &length, errorMessages);
 
+
         if (type == GL_VERTEX_SHADER) {
             std::println("{}", "ERROR: GL_VERTEX_SHADER compilation failed!");
         } else if (type == GL_FRAGMENT_SHADER) {
             std::println("{}", "ERROR: GL_FRAGMENT_SHADER compilation failed!");
         }
+
+        // Log shader compilation error
+        std::cerr << errorMessages << std::endl;
 
         // Reclaim our memory
         delete[] errorMessages;
@@ -139,7 +167,10 @@ GLuint CreateShaderProgram(const std::string& vertexShaderSource,
  * Create the graphics pipeline
  */
 void CreateGraphicsPipeline() {
-    gGraphicsPipelineShaderProgram = CreateShaderProgram(gVertexShaderSource, gFragmentShaderSource);
+    std::string vertexShaderSource = LoadShaderAsString("../shaders/vert.glsl");
+    std::string fragmentShaderSource = LoadShaderAsString("../shaders/frag.glsl");
+
+    gGraphicsPipelineShaderProgram = CreateShaderProgram(vertexShaderSource, fragmentShaderSource);
 }
 
 void GetOpenGLVersionInfo() {
@@ -159,12 +190,21 @@ void VertexSpecification() {
     // to store this data on the GPU shortly, in a call to glBufferData which will store this
     // information into a vertex buffer object (VBO).
     // Vertices on the CPU
-    const std::vector<GLfloat> vertexPosition{
-        // x     y     z
-        -0.8f, -0.8f, 0.0f, // Left vertex position
-        0.8f, -0.8f, 0.0f, // Right vertex position
-        0.0f, 0.8f, 0.0f // Top vertex position
+    const std::vector<GLfloat> vertexData{
+        // 0 - Vertex
+        -0.5f, -0.5f, 0.0f, // Left vertex position
+        1.0f, 0.0f, 0.0f, // color
+        // 1 - Vertex
+        0.5f, -0.5f, 0.0f, // Right vertex position
+        0.0f, 1.0f, 0.0f, // color
+        // 2 - Vertex
+        -0.5f, 0.5f, 0.0f, // Top left vertex position
+        0.0f, 0.0f, 1.0f, // color
+        // 3 - Vertex
+        0.5f, 0.5f, 0.0f, // Top right vertex position
+        0.0f, 0.0f, 1.0f, // color
     };
+
 
     // Vertex Array Object (VAO) Setup
     // Note: We can think of the VAO as a 'wrapper around' all the Vertex Buffer Objects,
@@ -183,17 +223,29 @@ void VertexSpecification() {
     // Bind is equivalent to 'selecting the active buffer object' that we want to work with
     // in OpenGL.
     glBindBuffer(GL_ARRAY_BUFFER, gVertexBufferObject);
-    // Now, in our currently binded buffer, we populate the data from our
+    // Now, in our currently bound buffer, we populate the data from our
     // 'vertexPositions' (which is in the CPU), onto a buffer that will live on the GPU
     glBufferData(GL_ARRAY_BUFFER, // Kind of buffer we are working with
-                 vertexPosition.size() * sizeof(GLfloat), // Size of data in bytes
-                 vertexPosition.data(), // Raw * array of data
+                 vertexData.size() * sizeof(GLfloat), // Size of data in bytes
+                 vertexData.data(), // Raw * array of data
                  GL_STATIC_DRAW // How we intend to use the data
     );
+
+    const std::vector<GLuint> indexBufferData{2, 0, 1, 3, 2, 1};
+    // Set up the Index Buffer Object (IBO aka EBO)
+    glGenBuffers(1, &gIndexBufferObject);
 
     // For our given Vertex Array Object, we need to tell Opengl 'how'
     // the information in our buffer will be used.
     glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,
+                 gIndexBufferObject);
+    // Populate our Index Buffer (shifting data to GPU)
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 indexBufferData.size() * sizeof(GLuint),
+                 indexBufferData.data(),
+                 GL_STATIC_DRAW
+    );
 
     // For the specific attribute in our vertex specification, we use
     // 'glVertexAttribPointer' to figure out how we are going to move
@@ -202,14 +254,26 @@ void VertexSpecification() {
                           3, // The number of components (e.g. x,y,z = 3 components)
                           GL_FLOAT, // Type
                           GL_FALSE, // Is the data normalized
-                          0, // Stride
+                          sizeof(GL_FLOAT) * 6, // Stride
                           (void*)0 // Offset (pointer)
     );
+
+    // Color information
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1,
+                          3,
+                          GL_FLOAT,
+                          GL_FALSE,
+                          sizeof(GL_FLOAT) * 6,
+                          (GLvoid*)(sizeof(GL_FLOAT) * 3)
+    );
+
     // Unbind our currently bound Vertex Array object
     glBindVertexArray(0);
     // Disable any attributes we opened in our Vertex Attribute Array,
     // as we do not want to leave them open.
     glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
 }
 
 
@@ -225,7 +289,7 @@ void InitializeProgram() {
     }
 
     // Set up the OpenGL Context
-    // Use OpenGL 4.1 core or greater
+    // Use OpenGL 4.1 core or greater -- Mac only supports up to 4.1
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
@@ -303,7 +367,7 @@ void Draw() {
     glBindBuffer(GL_ARRAY_BUFFER, gVertexBufferObject);
 
     // Render data
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
     // Stop using our current graphics pipeline
     // Note: This is not necessary if we only have one graphics pipeline
@@ -334,7 +398,7 @@ void CleanUp() {
 }
 
 int main() {
-    // 1. Setup the graphics program
+    // 1. Set up the graphics program
     InitializeProgram();
 
     // 2. Setup our geometry
