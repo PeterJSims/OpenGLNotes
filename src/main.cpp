@@ -6,6 +6,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "camera.h"
+
 // Temp Globals
 int gScreenWidth{640};
 int gScreenHeight{480};
@@ -42,6 +44,9 @@ GLuint gIndexBufferObject{0};
 float g_uOffset{-2.0f};
 float g_uRotate{0.0f};
 float g_uScale{0.5f};
+
+// Global camera
+Camera gCamera;
 
 // Error Handling Routines
 static void GLClearAllErrors() {
@@ -260,7 +265,7 @@ void VertexSpecification() {
                           3, // The number of components (e.g. x,y,z = 3 components)
                           GL_FLOAT, // Type
                           GL_FALSE, // Is the data normalized
-                          sizeof(GL_FLOAT) * 6, // Stride
+                          sizeof(GLfloat) * 6, // Stride
                           (void*)0 // Offset (pointer)
     );
 
@@ -270,8 +275,8 @@ void VertexSpecification() {
                           3,
                           GL_FLOAT,
                           GL_FALSE,
-                          sizeof(GL_FLOAT) * 6,
-                          (GLvoid*)(sizeof(GL_FLOAT) * 3)
+                          sizeof(GLfloat) * 6,
+                          (GLvoid*)(sizeof(GLfloat) * 3)
     );
 
     // Unbind our currently bound Vertex Array object
@@ -333,6 +338,9 @@ void InitializeProgram() {
  * Function called int the main application loop to handle user input
  */
 void Input() {
+    static int mouseX = gScreenWidth/2;
+    static int mouseY = gScreenHeight /2;
+
     // Event handler that handles various events in SDL
     // that are related to input and output
     SDL_Event e;
@@ -342,11 +350,20 @@ void Input() {
         if (e.type == SDL_QUIT) {
             std::println("{}", "Closing the application");
             gQuit = true;
+        } else if (e.type == SDL_MOUSEMOTION) {
+            mouseX += e.motion.xrel;
+            mouseY += e.motion.yrel;
+            gCamera.MouseLook(mouseX,mouseY);
         }
     }
 
+
     // Retrieve keyboard state
     const Uint8* state = SDL_GetKeyboardState(nullptr);
+
+    if (state[SDL_SCANCODE_ESCAPE]) {
+        gQuit = true;
+    }
     if (state[SDL_SCANCODE_UP]) {
         g_uOffset += 0.0005f;
         // std::println("g_uOffset: {}", g_uOffset);
@@ -362,6 +379,20 @@ void Input() {
     if (state[SDL_SCANCODE_RIGHT]) {
         g_uRotate += 0.05f;
         // std::println("g_uRotate: {}", g_uRotate);
+    }
+
+    float speed = 0.001f;
+    if (state[SDL_SCANCODE_W]) {
+        gCamera.MoveForward(speed);
+    }
+    if (state[SDL_SCANCODE_S]) {
+        gCamera.MoveBackward(speed);
+    }
+    if (state[SDL_SCANCODE_A]) {
+        gCamera.MoveLeft(speed);
+    }
+    if (state[SDL_SCANCODE_D]) {
+        gCamera.MoveRight(speed);
     }
 }
 
@@ -381,9 +412,8 @@ void PreDraw() {
     glUseProgram(gGraphicsPipelineShaderProgram);
 
     // Model transformation by translating our object into world space
-    glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(g_uRotate), glm::vec3(0.0f, 1.0f, 0.0f));
-    // model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0, g_uOffset));
-    model = glm::translate(model,  glm::vec3(0.0f, 0.0, g_uOffset));
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0, g_uOffset));
+    model = glm::rotate(model, glm::radians(g_uRotate), glm::vec3(0.0f, 1.0f, 0.0f));
 
     // Update the model matrix by applying a rotation after our translation
     model = glm::scale(model, glm::vec3(g_uScale, g_uScale, g_uScale));
@@ -393,14 +423,24 @@ void PreDraw() {
     GLint u_ModelMatrixLocation = glGetUniformLocation(gGraphicsPipelineShaderProgram, "u_ModelMatrix");
 
     if (u_ModelMatrixLocation >= 0) {
-        glUniformMatrix4fv(u_ModelMatrixLocation, 1, GL_FALSE, &model[0][0]);
+        glUniformMatrix4fv(u_ModelMatrixLocation, 1, false, &model[0][0]);
     } else {
         std::println("Could not find u_ModelMatrix");
         exit(EXIT_FAILURE);
     }
 
+    // Camera work section
+    glm::mat4 viewMatrix = gCamera.GetViewMatrix();
+    GLint u_ViewMatrixLocation = glGetUniformLocation(gGraphicsPipelineShaderProgram, "u_ViewMatrix");
+    if (u_ViewMatrixLocation >= 0) {
+        glUniformMatrix4fv(u_ViewMatrixLocation, 1, false, &viewMatrix[0][0]);
+    } else {
+        std::println("Could not find u_ViewMatrix");
+        exit(EXIT_FAILURE);
+    }
 
-    // Perspective projection matrix
+
+    // Projection matrix (in perspective)
     glm::mat4 projection = glm::perspective(
         glm::radians(45.0f), (float)gScreenWidth / (float)gScreenHeight,
         0.1f,
@@ -408,9 +448,8 @@ void PreDraw() {
 
     // Retrieve our location of our Model Matrix
     GLint u_ProjectionLocation = glGetUniformLocation(gGraphicsPipelineShaderProgram, "u_Projection");
-
     if (u_ProjectionLocation >= 0) {
-        glUniformMatrix4fv(u_ProjectionLocation, 1, GL_FALSE, &projection[0][0]);
+        glUniformMatrix4fv(u_ProjectionLocation, 1, false, &projection[0][0]);
     } else {
         std::println("Could not find u_Projection");
         exit(EXIT_FAILURE);
@@ -436,6 +475,9 @@ void Draw() {
 }
 
 void MainLoop() {
+    SDL_WarpMouseInWindow(gGraphicsAppWindow, gScreenWidth / 2, gScreenHeight / 2);
+    SDL_SetRelativeMouseMode(SDL_TRUE);
+
     // While the application is running
     while (!gQuit) {
         // Handle input
