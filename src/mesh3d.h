@@ -34,7 +34,7 @@ struct Mesh3D {
 
     GLuint mPipeline = 0;
 
-    Transform mTransform;
+    Transform mTransform{};
     // Global offsets for rotations/zoom
     float m_uRotate{0.0f};
     float m_uScale{0.5f};

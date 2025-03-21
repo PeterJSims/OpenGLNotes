@@ -6,6 +6,7 @@
 #define GL_CHECK_H
 
 #include <glad/glad.h>
+#include <iostream>
 
 static void GLClearAllErrors() {
     while (glGetError() != GL_NO_ERROR) {

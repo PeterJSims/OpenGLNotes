@@ -20,7 +20,6 @@ Mesh3D gMesh2;
 std::vector<Mesh3D*> meshPtrs{&gMesh1, &gMesh2};
 
 
-
 /**
  * Create the graphics pipeline
  */
@@ -167,8 +166,7 @@ void MainLoop() {
 
 
         for (const auto meshPtr : meshPtrs) {
-            MeshUpdate(meshPtr, gApp);
-            MeshDraw(meshPtr);
+            MeshDraw(&gApp, meshPtr);
         }
 
         // Update the screen of the specified window
@@ -194,6 +192,13 @@ void CleanUp() {
 int main() {
     // 1. Set up the graphics program
     InitializeProgram(&gApp);
+    // Set up our camera
+    const float aspect = (float)gApp.mScreenWidth / (float)gApp.mScreenHeight;
+    gApp.mCamera.SetProjectionMatrix(glm::radians(45.0f),
+                                     aspect,
+                                     0.1f,
+                                     10.0f
+    );
 
     // 2. Setup our geometry
     MeshCreate(&gMesh1);
@@ -203,7 +208,7 @@ int main() {
 
     MeshCreate(&gMesh2);
     gMesh2.mTransform.x = 2.0f;
-    gMesh2.mTransform.y = 0.4f;
+    gMesh2.mTransform.y = 0.1f;
     gMesh2.mTransform.z = -4.0f;
 
     // 3. Create our graphics pipel ine

@@ -24,7 +24,6 @@ void MeshSetPipeline(Mesh3D* mesh, GLuint pipeline) {
 }
 
 
-
 void MeshCreate(Mesh3D* mesh) {
     // Geometry Data
     // Here we are going to store x, y, and z position attributes within vertexPositions
@@ -121,11 +120,41 @@ void MeshCreate(Mesh3D* mesh) {
 /**
  * The render function gets called once per loop.
  */
-void MeshDraw(const Mesh3D* mesh) {
+void MeshDraw(App* app, const Mesh3D* mesh) {
     if (mesh == nullptr) { return; }
 
     // Set which graphics pipeline to use
     glUseProgram(mesh->mPipeline);
+
+
+    // Model transformation by translating our object into world space
+    glm::mat4 model = glm::translate(glm::mat4(1.0f),
+                                     glm::vec3(mesh->mTransform.x, mesh->mTransform.y, mesh->mTransform.z));
+    model = glm::rotate(model, glm::radians(mesh->m_uRotate), glm::vec3(0.0f, 1.0f, 0.0f));
+    // Update the model matrix by applying a rotation after our translation
+    model = glm::scale(model, glm::vec3(mesh->m_uScale, mesh->m_uScale, mesh->m_uScale));
+
+
+    // Retrieve our location of our Model Matrix
+    GLint u_ModelMatrixLocation = FindUniformLocation(app->mGraphicsPipelineShaderProgram, "u_ModelMatrix");
+    glUniformMatrix4fv(u_ModelMatrixLocation, 1, false, &model[0][0]);
+
+
+    // Camera work section
+    glm::mat4 viewMatrix = app->mCamera.GetViewMatrix();
+
+    // Retrieve our location of our Projection Matrix
+
+    GLint u_ViewMatrixLocation = FindUniformLocation(app->mGraphicsPipelineShaderProgram, "u_ViewMatrix");
+    glUniformMatrix4fv(u_ViewMatrixLocation, 1, false, &viewMatrix[0][0]);
+
+
+    // Retrieve our location of our Projection Matrix
+    glm::mat4 perspective = app->mCamera.GetProjectionMatrix();
+    GLint u_ProjectionLocation = FindUniformLocation(app->mGraphicsPipelineShaderProgram, "u_Projection");
+    glUniformMatrix4fv(u_ProjectionLocation, 1, false, &perspective[0][0]);
+
+
     // Enable our attributes
     glBindVertexArray(mesh->mVertexArrayObject);
 
@@ -140,58 +169,6 @@ void MeshDraw(const Mesh3D* mesh) {
     glUseProgram(0);
 }
 
-
-/**
- * Updating/manipulating the state of a Mesh3D object
- * Note: some of the calls may take place at different stages (post-processing) of the pipeline.
- */
-void MeshUpdate(const Mesh3D* mesh,const App& app) {
-    glUseProgram(mesh->mPipeline);
-
-    // Model transformation by translating our object into world space
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(mesh->mTransform.x, mesh->mTransform.y, mesh->mTransform.z));
-    model = glm::rotate(model, glm::radians(mesh->m_uRotate), glm::vec3(0.0f, 1.0f, 0.0f));
-    // Update the model matrix by applying a rotation after our translation
-    model = glm::scale(model, glm::vec3(mesh->m_uScale, mesh->m_uScale, mesh->m_uScale));
-
-
-    // Retrieve our location of our Model Matrix
-    GLint u_ModelMatrixLocation = glGetUniformLocation(app.mGraphicsPipelineShaderProgram, "u_ModelMatrix");
-
-    if (u_ModelMatrixLocation >= 0) {
-        glUniformMatrix4fv(u_ModelMatrixLocation, 1, false, &model[0][0]);
-    } else {
-        std::println("Could not find u_ModelMatrix");
-        exit(EXIT_FAILURE);
-    }
-
-    // Camera work section
-    glm::mat4 viewMatrix = app.mCamera.GetViewMatrix();
-    GLint u_ViewMatrixLocation = glGetUniformLocation(app.mGraphicsPipelineShaderProgram, "u_ViewMatrix");
-    if (u_ViewMatrixLocation >= 0) {
-        glUniformMatrix4fv(u_ViewMatrixLocation, 1, false, &viewMatrix[0][0]);
-    } else {
-        std::println("Could not find u_ViewMatrix");
-        exit(EXIT_FAILURE);
-    }
-
-
-    // Projection matrix (in perspective)
-    glm::mat4 projection = glm::perspective(
-        glm::radians(45.0f), (float)app.mScreenWidth / (float)app.mScreenHeight,
-        0.1f,
-        10.0f);
-
-    // Retrieve our location of our Model Matrix
-    GLint u_ProjectionLocation = glGetUniformLocation(app.mGraphicsPipelineShaderProgram, "u_Projection");
-    if (u_ProjectionLocation >= 0) {
-        glUniformMatrix4fv(u_ProjectionLocation, 1, false, &projection[0][0]);
-    } else {
-        std::println("Could not find u_Projection");
-        exit(EXIT_FAILURE);
-    }
-}
-
 /**
  * Delete a mesh from GPU memory
  */
@@ -199,4 +176,14 @@ void MeshDelete(Mesh3D* mesh) {
     // Delete our OpenGL objects
     glDeleteBuffers(1, &mesh->mVertexBufferObject);
     glDeleteVertexArrays(1, &mesh->mVertexBufferObject);
+}
+
+// Returns the location of a uniform variable after validating its existence
+GLint FindUniformLocation(const GLuint pipeline, const GLchar* name) {
+    GLint location = glGetUniformLocation(pipeline, name);
+    if (location < 0) {
+        std::println(std::cerr, "Could not find {}", name);
+        exit(EXIT_FAILURE);
+    }
+    return location;
 }

@@ -13,6 +13,9 @@ class Camera {
 public:
     Camera();
     glm::mat4 GetViewMatrix() const;
+    glm::mat4 GetProjectionMatrix() const;
+
+    void SetProjectionMatrix(float fovy, float aspect, float near, float far);
 
     void MouseLook(int mouseX, int mouseY);
     void MoveForward(float speed);
@@ -21,9 +24,13 @@ public:
     void MoveRight(float speed);
 
 private:
+
+    glm::mat4 mProjectionMatrix;
+
     glm::vec3 mEye;
     glm::vec3 mViewDirection;
     glm::vec3 mUpVector;
+
 
     glm::vec2 mOldMousePosition;
 };

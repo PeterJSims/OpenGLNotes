@@ -5,9 +5,11 @@
 #ifndef APP_H
 #define APP_H
 
+
 #include <SDL2/SDL.h>
 #include <glad/glad.h>
 #include "camera.h"
+
 
 struct App {
     int mScreenWidth{640};
@@ -20,7 +22,6 @@ struct App {
     // The following stores a unique ID for the graphics pipeline
     // program object that will be used for our OpenGL draw calls.
     GLuint mGraphicsPipelineShaderProgram{0};
-
 
     Camera mCamera;
 };

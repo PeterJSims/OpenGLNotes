@@ -10,9 +10,9 @@
 
 void MeshSetPipeline(Mesh3D* mesh, GLuint pipeline);
 void MeshCreate(Mesh3D* mesh);
-void MeshDraw(const Mesh3D* mesh);
-void MeshUpdate(const Mesh3D* mesh, const App& app);
+void MeshDraw(App* app, const Mesh3D* mesh);
 void MeshDelete(Mesh3D* mesh);
+GLint FindUniformLocation(GLuint pipeline, const GLchar* name);
 
 
 #endif //MESH_H
