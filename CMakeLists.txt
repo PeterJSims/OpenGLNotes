@@ -30,6 +30,13 @@ add_executable(OpenGLTutorial src/main.cpp
         include/glad.c
         src/camera.h
         src/camera.cpp
+        src/app.h
+        src/mesh3d.h
+        src/gl_check.h
+        src/shaders.h
+        src/mesh.cpp
+        src/mesh.h
+        src/transform.h
 )
 
 
